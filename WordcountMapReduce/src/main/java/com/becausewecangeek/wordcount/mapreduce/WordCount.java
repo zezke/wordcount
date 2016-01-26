@@ -4,6 +4,7 @@ import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
@@ -12,8 +13,9 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -23,7 +25,32 @@ import java.io.InputStream;
  *
  * @author www.becausewecangeek.com
  */
-public class WordCount {
+public class WordCount extends Configured implements Tool {
+
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration();
+        int status = ToolRunner.run(conf, new WordCount(), args);
+        System.exit(status);
+    }
+
+    public int run(String[] args) throws Exception {
+        Job job = Job.getInstance(getConf());
+        job.setJarByClass(WordCount.class);
+        job.setMapperClass(TokenizerMapper.class);
+        job.setCombinerClass(IntSumReducer.class);
+        job.setReducerClass(IntSumReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        // Check if the user provided a job name
+        String jobName = (args.length >= 3 ? args[2] : "BWCGWordCount");
+        job.setJobName(jobName);
+
+        // Run the job
+        return (job.waitForCompletion(true) ? 0 : 1);
+    }
 
     /**
      * Mapper
@@ -38,7 +65,7 @@ public class WordCount {
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
             super.setup(context);
-            modelInputStream = new FileInputStream("src/main/resources/en-token.bin");
+            modelInputStream = getClass().getClassLoader().getResourceAsStream("en-token.bin");
             tokenizer = new TokenizerME(new TokenizerModel(modelInputStream));
         }
 
@@ -74,19 +101,5 @@ public class WordCount {
             result.set(sum);
             context.write(key, result);
         }
-    }
-
-    public static void main(String[] args) throws Exception {
-        Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "word count");
-        job.setJarByClass(WordCount.class);
-        job.setMapperClass(TokenizerMapper.class);
-        job.setCombinerClass(IntSumReducer.class);
-        job.setReducerClass(IntSumReducer.class);
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(IntWritable.class);
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
