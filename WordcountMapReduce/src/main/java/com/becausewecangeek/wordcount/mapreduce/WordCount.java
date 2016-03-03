@@ -1,8 +1,5 @@
 package com.becausewecangeek.wordcount.mapreduce;
 
-import opennlp.tools.tokenize.Tokenizer;
-import opennlp.tools.tokenize.TokenizerME;
-import opennlp.tools.tokenize.TokenizerModel;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -18,6 +15,7 @@ import org.apache.hadoop.util.ToolRunner;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.regex.Pattern;
 
 /**
  * A MapReduce implementation for a simple Word Count. Based on the Hadoop example code as found on:
@@ -57,20 +55,20 @@ public class WordCount extends Configured implements Tool {
      */
     public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable> {
 
-        private InputStream modelInputStream;
-        private Tokenizer tokenizer;
+        private final static Pattern specialCharsRemovePattern = Pattern.compile("[^a-zA-Z]");
         private final static IntWritable one = new IntWritable(1);
+
+        private InputStream modelInputStream;
         private Text word = new Text();
 
         @Override
         protected void setup(Context context) throws IOException, InterruptedException {
             super.setup(context);
             modelInputStream = getClass().getClassLoader().getResourceAsStream("en-token.bin");
-            tokenizer = new TokenizerME(new TokenizerModel(modelInputStream));
         }
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String tokens[] = tokenizer.tokenize(value.toString());
+            String[] tokens = specialCharsRemovePattern.matcher(value.toString()).replaceAll(" ").toLowerCase().split("\\s+");
             for(String token : tokens) {
                 word.set(token);
                 context.write(word, one);
